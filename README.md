@@ -7,7 +7,14 @@ The agent is currently able to retrieve information about appointments for a giv
 ## Setup & How to Run
 1. Clone using `git clone https://github.com/PudduAlessandro/agentic-interaction-ws2627.git`
 2. Install required packages using `pip install -r requirements.txt`
-3. Run the agent via CLI from the cloned directory using `python -m agent <prompt>`
+3. Create a .env file in the agent directory with the following content:
+```
+OPENAI_BASE_URL=<Base URL to model endpoint>
+MODEL=<Model name>
+OPENAI_API_KEY=<Your API key>
+DATA_BASE_URL=<Base URL to data endpoint>
+```
+4. Run the agent via CLI from the cloned directory using `python -m agent <prompt>`
 
 
 This project is being created as part of the "Agentic Human-AI Interaction" course at Ulm University.
