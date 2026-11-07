@@ -7,10 +7,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pathlib import Path
 
-
 import requests
 from openai import OpenAI
-
 
 def log_call(
     log_path: Path,
@@ -51,7 +49,6 @@ def log_call(
     with log_path.open("a", encoding="utf-8") as log_file:
         log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-
 def normalize_date(date: str) -> str:
     """
     Formats and returns the entered date from user prompt to YYYY-MM-DD format for calendar endpoint use
@@ -65,7 +62,7 @@ def normalize_date(date: str) -> str:
             continue
 
     raise ValueError(
-        f"Invalid date {date!r}; expected YYYY-MM-DD or DD.MM.YYYY."
+        f"Invalid date {date!r}! Expected date in either YYYY-MM-DD or DD.MM.YYYY. format"
     )
 
 
@@ -76,7 +73,6 @@ def get_appointments(appointment_date: str) -> str:
     :return: JSON string containing the appointments.
     """
     url = os.environ.get("DATA_BASE_URL") + f"/calendar/{appointment_date}.json"
-
     response = requests.get(url, timeout=15)
 
     if response.status_code == 404:
@@ -93,15 +89,26 @@ def get_appointments(appointment_date: str) -> str:
 
 
 def main() -> int:
-    load_dotenv()
+    if len(sys.argv) < 2:
+        print("Usage: python -m agent '<question>'", file=sys.stderr)
+        return 2
+
+    # Check for .env file and required variables
+    dotenv_exists = load_dotenv()
+    if not dotenv_exists:
+        print("ERROR: No .env file found. Please create one containing the variables listed in README.md", file=sys.stderr)
+        return 1
+
+    for var in [ "OPENAI_BASE_URL", "MODEL", "OPENAI_API_KEY", "DATA_BASE_URL"]:
+        if not os.environ.get(var):
+            print(f"ERROR: {var} environment variable is not set.", file=sys.stderr)
+            return 1
+
     run_id = str(uuid.uuid4())
     logs_dir = Path(__file__).with_name("logs")
     logs_dir.mkdir(exist_ok=True)
     log_path = logs_dir / f"{run_id}.jsonl"
-
-    if len(sys.argv) < 2:
-        print("Usage: python -m agent <question>", file=sys.stderr)
-        return 2
+    current_date = datetime.now().astimezone().date().isoformat()
 
     prompt = " ".join(sys.argv[1:]).strip()
     model = os.environ.get("MODEL", "")
@@ -120,7 +127,7 @@ def main() -> int:
         api_key=os.environ.get("OPENAI_API_KEY"),
         base_url=os.environ.get("OPENAI_BASE_URL"),
     )
-
+    
     tools = [
         {
             "type": "function",
@@ -128,6 +135,7 @@ def main() -> int:
                 "name": "get_appointments",
                 "description": (
                     "Retrieve all calendar appointments for one specific date. "
+                    f"Today's date is the {current_date}. Should the user ask for appointments regarding dates in relation to today, attempt to calculate the date and call this tool with the correct date. "
                     "The date may use YYYY-MM-DD or European DD.MM.YYYY format."
                 ),
                 "parameters": {
