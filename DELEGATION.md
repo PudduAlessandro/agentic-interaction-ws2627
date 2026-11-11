@@ -14,7 +14,7 @@
 | Delete a note | approval | Deleting information should always require approval since it is usually irreversible |
 
 ### (My) Rule in one Sentence
-For this set of actions, the agent should always ask for approval before doing anything that is **not** read-only.
+For this set of actions, the agent should always ask for approval before doing anything that is **not** read-only (creating a note is the exception, since it can be deleted later).
 
 ### Observations
 - Depending on the wording used during the requests (like “Get me to the workshop visit…”), the agent acted on its own too much without asking for approval first, unless we told it to stop.
