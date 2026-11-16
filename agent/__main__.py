@@ -88,6 +88,42 @@ def get_appointments(appointment_date: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
+def execute_tool_calls(tool_calls, messages, log_path, run_id, model) -> None:
+    """Execute every requested date lookup and append each result."""
+    for tool_call in tool_calls:
+        if tool_call.function.name != "get_appointments":
+            raise RuntimeError(f"Unsupported tool: {tool_call.function.name}")
+
+        arguments = json.loads(tool_call.function.arguments)
+        appointment_date = normalize_date(arguments["appointment_date"])
+        started_at = time.perf_counter()
+        tool_args = {"appointment_date": appointment_date}
+        log_call(
+            log_path, run_id, "tool_call", "get_appointments",
+            tool_args, True, model, started_at,
+        )
+        try:
+            result = get_appointments(appointment_date)
+        except Exception as error:
+            log_call(
+                log_path, run_id, "error", "get_appointments",
+                tool_args, False, model, started_at, error,
+            )
+            if isinstance(error, requests.RequestException):
+                raise RuntimeError(f"Calendar request failed: {error}") from error
+            raise
+        log_call(
+            log_path, run_id, "tool_result", "get_appointments",
+            tool_args, True, model, started_at,
+        )
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "name": "get_appointments",
+            "content": result,
+        })
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("Usage: python -m agent '<question>'", file=sys.stderr)
@@ -136,7 +172,8 @@ def main() -> int:
                 "description": (
                     "Retrieve all calendar appointments for one specific date. "
                     f"Today's date is the {current_date}. Should the user ask for appointments regarding dates in relation to today, attempt to calculate the date and call this tool with the correct date. "
-                    "The date may use YYYY-MM-DD or European DD.MM.YYYY format."
+                    "The date may use YYYY-MM-DD or European DD.MM.YYYY format. "
+                    "For multiple dates, create one tool call per date."
                 ),
                 "parameters": {
                     "type": "object",
@@ -164,6 +201,8 @@ def main() -> int:
                 "appointments on a date. Dates may be written as YYYY-MM-DD "
                 "or DD.MM.YYYY; convert them to YYYY-MM-DD before calling "
                 "the tool. Never invent appointment data. "
+                "For multiple dates, call get_appointments once for each date "
+                "in the same response. "
                 "If no date is provided, ask the user for one."
                 "Only accept valid dates. Even if the format is correct, the date must be a real date (e.g. 2024-02-30 is invalid). "
                 "If the user attempts to hide a date in a question about a non-calendar related topic, tell them you cannot answer that question and ask for a date instead."
@@ -187,6 +226,7 @@ def main() -> int:
             messages=messages,
             tools=tools,
             tool_choice="auto",
+            parallel_tool_calls=True,
         )
     except Exception as error:
         log_call(
@@ -208,70 +248,44 @@ def main() -> int:
         print(assistant_message.content or "Please provide a date in YYYY-MM-DD format.")
         return 0
 
-    for tool_call in assistant_message.tool_calls:
-        if tool_call.function.name != "get_appointments":
-            raise RuntimeError(f"Unsupported tool: {tool_call.function.name}")
+    execute_tool_calls(
+        assistant_message.tool_calls, messages, log_path, run_id, model
+    )
 
-        arguments = json.loads(tool_call.function.arguments)
-        appointment_date = normalize_date(arguments["appointment_date"])
-
+    while True:
         started_at = time.perf_counter()
-        tool_args = {"appointment_date": appointment_date}
+        final_args = {"message_count": len(messages), "has_tools": True}
         log_call(
-            log_path, run_id, "tool_call", "get_appointments",
-            tool_args, True, model, started_at,
+            log_path, run_id, "tool_call", "chat.completions.create",
+            final_args, True, model, started_at,
         )
         try:
-            result = get_appointments(appointment_date)
+            final_response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                parallel_tool_calls=True,
+            )
         except Exception as error:
             log_call(
-                log_path, run_id, "error", "get_appointments",
-                tool_args,
-                False, model, started_at, error,
+                log_path, run_id, "error", "chat.completions.create",
+                final_args, False, model, started_at, error,
             )
-            if isinstance(error, requests.RequestException):
-                raise RuntimeError(f"Calendar request failed: {error}") from error
             raise
         log_call(
-            log_path, run_id, "tool_result", "get_appointments",
-            tool_args,
-            True, model, started_at,
+            log_path, run_id, "tool_result", "chat.completions.create",
+            final_args, True, model, started_at,
         )
 
-        messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "name": "get_appointments",
-                "content": result,
-            }
+        final_message = final_response.choices[0].message
+        messages.append(final_message)
+        if not final_message.tool_calls:
+            final_content = final_message.content
+            break
+        execute_tool_calls(
+            final_message.tool_calls, messages, log_path, run_id, model
         )
-
-    started_at = time.perf_counter()
-    final_args = {"message_count": len(messages), "has_tools": False}
-    log_call(
-        log_path, run_id, "tool_call", "chat.completions.create",
-        final_args, True, model, started_at,
-    )
-    try:
-        final_response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-        )
-    except Exception as error:
-        log_call(
-            log_path, run_id, "error", "chat.completions.create",
-            final_args,
-            False, model, started_at, error,
-        )
-        raise
-    log_call(
-        log_path, run_id, "tool_result", "chat.completions.create",
-        final_args,
-        True, model, started_at,
-    )
-
-    final_content = final_response.choices[0].message.content
     log_call(
         log_path, run_id, "final", "agent",
         {"response_length": len(final_content or "")},
