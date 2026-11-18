@@ -157,12 +157,8 @@ def main() -> int:
         print("Usage: python -m agent '<question>'", file=sys.stderr)
         return 2
 
-    # Check for .env file and required variables
-    dotenv_exists = load_dotenv()
-    if not dotenv_exists:
-        print("ERROR: No .env file found. Please create one containing the variables listed in README.md", file=sys.stderr)
-        return 1
-
+    # Check for existing environment variables and load .env file if present
+    load_dotenv()
     for var in [ "OPENAI_BASE_URL", "MODEL", "OPENAI_API_KEY", "DATA_BASE_URL"]:
         if not os.environ.get(var):
             print(f"ERROR: {var} environment variable is not set.", file=sys.stderr)
@@ -333,7 +329,7 @@ def main() -> int:
     print(final_content)
     return 0
 
-
+# TODO: Maybe rework the entire thing to be better structured. Tools in own file, own config file, etc. (maybe look how others did it for inspiration)
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
