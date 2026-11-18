@@ -73,15 +73,12 @@ def normalize_date(date: str) -> str:
 
 def get_appointments(appointment_date: str) -> str:
     """
-    Agent tool function to retrieve all calendar appointments for a specific date.
+    Agent tool function to retrieve all calendar appointments for a single date.
     :param appointment_date: Date for which to retrieve appointments.
     :return: JSON string containing the appointments.
     """
     url = os.environ.get("DATA_BASE_URL") + f"/calendar/{appointment_date}.json"
     response = requests.get(url, timeout=15)
-
-    if response.status_code == 404:
-        return "No appointments are scheduled for this date."
 
     response.raise_for_status()
 
@@ -92,7 +89,7 @@ def get_appointments(appointment_date: str) -> str:
 
     return json.dumps(data, ensure_ascii=False)
 
-
+# Function to run step loop for tool calls, logging each step and handling errors
 def execute_tool_calls(
     tool_calls, messages, log_path, run_id, model, step_count
 ) -> int:
@@ -116,8 +113,10 @@ def execute_tool_calls(
             raise error
         step_count += 1
 
+        # Raise error if at any point the agent attempts to call another tool besides "get_appointments" TODO: Still need to figure out how to prevent/handle the agent appending tags or other symbols to the tool name should it happen again
         if tool_call.function.name != "get_appointments":
             raise RuntimeError(f"Unsupported tool: {tool_call.function.name}")
+
 
         arguments = json.loads(tool_call.function.arguments)
         appointment_date = normalize_date(arguments["appointment_date"])
@@ -169,12 +168,15 @@ def main() -> int:
             print(f"ERROR: {var} environment variable is not set.", file=sys.stderr)
             return 1
 
+    # Prepare log ID and directory
     run_id = str(uuid.uuid4())
     logs_dir = Path(__file__).with_name("logs")
     logs_dir.mkdir(exist_ok=True)
     log_path = logs_dir / f"{run_id}.jsonl"
     current_date = datetime.now().astimezone().date().isoformat()
 
+
+    # Read prompt from user input in command line
     prompt = " ".join(sys.argv[1:]).strip()
     model = os.environ.get("MODEL", "")
     log_call(
@@ -249,6 +251,7 @@ def main() -> int:
         log_path, run_id, "tool_call", "chat.completions.create",
         model_args, True, model, started_at,
     )
+    # Attempt to build the client with model, tools and system prompt
     try:
         response = client.chat.completions.create(
             model=model,
@@ -273,6 +276,7 @@ def main() -> int:
     assistant_message = response.choices[0].message
     messages.append(assistant_message)
 
+    # If there was no date found, there was no reason to call a tool
     if not assistant_message.tool_calls:
         print(assistant_message.content or "Please provide a date in YYYY-MM-DD format.")
         return 0
@@ -281,6 +285,7 @@ def main() -> int:
         assistant_message.tool_calls, messages, log_path, run_id, model, 0
     )
 
+    # If there were no tool calls, we're done
     while True:
         started_at = time.perf_counter()
         final_args = {"message_count": len(messages), "has_tools": True}
