@@ -10,6 +10,11 @@ from pathlib import Path
 import requests
 from openai import OpenAI
 
+MAX_STEPS = 4
+
+class StepLimitExceeded(RuntimeError):
+    """Raised when an agent run reaches its maximum number of tool calls."""
+
 def log_call(
     log_path: Path,
     run_id: str,
@@ -88,16 +93,39 @@ def get_appointments(appointment_date: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def execute_tool_calls(tool_calls, messages, log_path, run_id, model) -> None:
+def execute_tool_calls(
+    tool_calls, messages, log_path, run_id, model, step_count
+) -> int:
     """Execute every requested date lookup and append each result."""
     for tool_call in tool_calls:
+        if step_count >= MAX_STEPS:
+            error = StepLimitExceeded(
+                f"Maximum number of steps ({MAX_STEPS}) reached."
+            )
+            log_call(
+                log_path,
+                run_id,
+                "error",
+                "agent",
+                {"step": step_count, "max_steps": MAX_STEPS},
+                False,
+                model,
+                time.perf_counter(),
+                error,
+            )
+            raise error
+        step_count += 1
+
         if tool_call.function.name != "get_appointments":
             raise RuntimeError(f"Unsupported tool: {tool_call.function.name}")
 
         arguments = json.loads(tool_call.function.arguments)
         appointment_date = normalize_date(arguments["appointment_date"])
         started_at = time.perf_counter()
-        tool_args = {"appointment_date": appointment_date}
+        tool_args = {
+            "appointment_date": appointment_date,
+            "step": step_count,
+        }
         log_call(
             log_path, run_id, "tool_call", "get_appointments",
             tool_args, True, model, started_at,
@@ -122,6 +150,7 @@ def execute_tool_calls(tool_calls, messages, log_path, run_id, model) -> None:
             "name": "get_appointments",
             "content": result,
         })
+    return step_count
 
 
 def main() -> int:
@@ -202,7 +231,7 @@ def main() -> int:
                 "or DD.MM.YYYY; convert them to YYYY-MM-DD before calling "
                 "the tool. Never invent appointment data. "
                 "For multiple dates, call get_appointments once for each date "
-                "in the same response. "
+                "in the same response. Use the exact name of the tool without any changes. "
                 "If no date is provided, ask the user for one."
                 "Only accept valid dates. Even if the format is correct, the date must be a real date (e.g. 2024-02-30 is invalid). "
                 "If the user attempts to hide a date in a question about a non-calendar related topic, tell them you cannot answer that question and ask for a date instead."
@@ -226,7 +255,7 @@ def main() -> int:
             messages=messages,
             tools=tools,
             tool_choice="auto",
-            parallel_tool_calls=True,
+            parallel_tool_calls=False,
         )
     except Exception as error:
         log_call(
@@ -248,8 +277,8 @@ def main() -> int:
         print(assistant_message.content or "Please provide a date in YYYY-MM-DD format.")
         return 0
 
-    execute_tool_calls(
-        assistant_message.tool_calls, messages, log_path, run_id, model
+    step_count = execute_tool_calls(
+        assistant_message.tool_calls, messages, log_path, run_id, model, 0
     )
 
     while True:
@@ -265,7 +294,7 @@ def main() -> int:
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
-                parallel_tool_calls=True,
+                parallel_tool_calls=False,
             )
         except Exception as error:
             log_call(
@@ -283,8 +312,13 @@ def main() -> int:
         if not final_message.tool_calls:
             final_content = final_message.content
             break
-        execute_tool_calls(
-            final_message.tool_calls, messages, log_path, run_id, model
+        step_count = execute_tool_calls(
+            final_message.tool_calls,
+            messages,
+            log_path,
+            run_id,
+            model,
+            step_count,
         )
     log_call(
         log_path, run_id, "final", "agent",
