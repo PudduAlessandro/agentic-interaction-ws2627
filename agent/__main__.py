@@ -31,27 +31,34 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
         if tool_function is None:
             raise RuntimeError(f"Unsupported tool: {tool_name}")
 
-        arguments = json.loads(tool_call.function.arguments)
+        tool_args = {"step": step_count}
 
-        if tool_name == "get_appointments":
-            arguments["appointment_date"] = normalize_date(
-                arguments["appointment_date"]
-            )
-
-        tool_args = {
-            **arguments,
-            "step": step_count,
-        }
-
-        log_event( "tool_call", settings.model, time.perf_counter(), tool_name,tool_args)
         try:
+            arguments = json.loads(tool_call.function.arguments)
+
+            if tool_name == "get_appointments":
+                arguments["appointment_date"] = normalize_date(
+                    arguments["appointment_date"]
+                )
+
+            tool_args = {
+                **arguments,
+                "step": step_count,
+            }
+
+            log_event("tool_call", settings.model, time.perf_counter(), tool_name, tool_args)
             result = tool_function(**arguments)
         except Exception as error:
             log_error(time.perf_counter(), settings.model, tool_name, tool_args, error)
-            if isinstance(error, requests.RequestException):
-                raise RuntimeError(f"{tool_name} request failed: {error}") from error
-            raise
-        log_event("tool_result", settings.model, time.perf_counter(), tool_name, tool_args)
+
+            result = (
+                f"Unable to retrieve data for {tool_name}. "
+                "The external service failed or returned an error."
+            )
+        else:
+            log_event("tool_result", settings.model, time.perf_counter(), tool_name, tool_args)
+
+
         messages.append({
             "role": "tool",
             "tool_call_id": tool_call.id,
