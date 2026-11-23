@@ -40,7 +40,7 @@ TOOLS = [
                     "Retrieve the weather data for a given city on a specific date."
                     "If the city name is written in a language other than German, translate it to German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue)."
                     "If no specific city is mentioned, assume that the user is located in Ulm."
-                    "Always return information about the requested weather in the same language the user asked the question in."
+                    "Always return information about the requested weather in the same language the user asked the question in, no matter in what language the data is returned by the endpoints."
                 ),
                 "parameters": {
                     "type": "object",
@@ -66,11 +66,13 @@ TOOLS = [
             "function": {
                 "name": "get_connections",
                 "description": (
-                    "Retrieve train connections from one city to another"
+                    "Retrieve train connections from one city to another."
+                    "If the user needs to get to a appointment, highlight the connection that get's them to their destination on time but also provide all other connections for the same date. "
+                    "Should there be multiple appointments on the same date, provide a timeline of all connections that get the user to all appointments on time. Do not list connections with a arrival time after the appointment time. "
                     "Connection data can include departure times, train numbers/names and cost per ride, responses about connections should contain all these details."
-                    "If any city name is written in a language other than German, translate it to German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue)."
-                    "If city names are already written in German, make them lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue)."
-                    "If the user only asks about going somewhere without mentioning a city to start from, assume they are located in Ulm."
+                    "If any city name is written in a language other than German, translate it to German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue) before using it."
+                    "If city names are already written in German, make them lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue) before calling the tool."
+                    "If the user only asks about going somewhere without mentioning a city to start from, ALWAYS assume they are located in Ulm."
                     "Do not invent any data regarding connections and only use the data you receive"
                     "Always return information about the requested connection in the same language the user asked the question in. Should the retrieved data be in German, translate it into the language the user asked the question in."
                 ),
@@ -81,8 +83,8 @@ TOOLS = [
                             "type": "string",
                             "description": (
                                 "Name of the city the user wants to travel to."
-                                "If the city name is written in a language other than German, translate it to German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue)."
-                                "If the city name is already written in German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue)."
+                                "If the city name is written in a language other than German, translate it to German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue) before calling the tool."
+                                "If the city name is already written in German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue) before calling the tool."
                             ),
                         },
                         "from_city": {
