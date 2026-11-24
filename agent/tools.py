@@ -40,7 +40,7 @@ TOOLS = [
                     "Retrieve the weather data for a given city on a specific date."
                     "If the city name is written in a language other than German, translate it to German, make it lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue)."
                     "If no specific city is mentioned, assume that the user is located in Ulm."
-                    "Always return information about the requested weather in the same language the user asked the question in, no matter in what language the data is returned by the endpoints."
+                    "ALWAYS return information from the endpoint in the same language the user asked their question in, no matter in what language the data is returned by the endpoints."
                 ),
                 "parameters": {
                     "type": "object",
@@ -74,7 +74,7 @@ TOOLS = [
                     "If city names are already written in German, make them lowercase and convert any umlauts to their respective letter combinations (ä -> ae, ö -> oe, ü -> ue) before calling the tool."
                     "If the user only asks about going somewhere without mentioning a city to start from, ALWAYS assume they are located in Ulm."
                     "Do not invent any data regarding connections and only use the data you receive"
-                    "Always return information about the requested connection in the same language the user asked the question in. Should the retrieved data be in German, translate it into the language the user asked the question in."
+                    "ALWAYS return information about the requested connection in the same language the user asked their question in, regardless of the language the endpoint returned the information in."
                 ),
                 "parameters": {
                     "type": "object",
