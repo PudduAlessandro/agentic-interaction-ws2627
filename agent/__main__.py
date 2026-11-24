@@ -7,7 +7,6 @@ from .logging import log_event, log_error
 from .tools import TOOLS, TOOL_FUNCTIONS, normalize_date
 from .config import load_settings, SYSTEM_PROMPT
 
-import requests
 from openai import OpenAI
 
 class StepLimitExceeded(RuntimeError):
@@ -109,9 +108,9 @@ def main() -> int:
     assistant_message = response.choices[0].message
     messages.append(assistant_message)
 
-    # If there was no date found, there was no reason to call a tool
+    # If there was not enough information in the prompt to determine a tool to call, return an error message
     if not assistant_message.tool_calls:
-        print(assistant_message.content or "Please provide a date in YYYY-MM-DD format.")
+        print(assistant_message.content or "I was unable to determine which tool to call. Please provide a valid date or specify a destination to get train connections or weather data about.")
         return 0
 
     step_count = execute_tool_calls(
@@ -122,7 +121,6 @@ def main() -> int:
 
     # If there were no tool calls, we're done
     while True:
-        started_at = time.perf_counter()
         final_args = {"message_count": len(messages), "has_tools": True}
         log_event("tool_call",settings.model, time.perf_counter(),"chat.completions.create", final_args)
 
@@ -154,7 +152,7 @@ def main() -> int:
     print(final_content)
     return 0
 
-# TODO: Maybe rework the entire thing to be better structured. Tools in own file, own config file, etc. (maybe look how others did it for inspiration)
+
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
