@@ -46,7 +46,7 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
             }
 
             log_event("tool_call", settings.model, time.perf_counter(), tool_name, tool_args)
-            result = tool_function(**arguments)
+            result = tool_function(**arguments, data_base_url=settings.data_base_url)
         except Exception as error:
             log_error(time.perf_counter(), settings.model, tool_name, tool_args, error)
 
@@ -131,6 +131,7 @@ def main() -> int:
                 tool_choice="auto",
                 parallel_tool_calls=False,
             )
+
         except Exception as error:
             log_error(time.perf_counter(),settings.model,"chat.completions.create", final_args, error)
             raise

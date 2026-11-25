@@ -1,12 +1,10 @@
 import json
 import os
 from datetime import datetime
-from .__main__ import settings
 
 import requests
 
 current_date = datetime.now().astimezone().date().isoformat()
-base_url = settings.data_base_url
 
 TOOLS = [
     {
@@ -130,13 +128,13 @@ def normalize_date(date: str) -> str:
     )
 
 
-def get_appointments(appointment_date: str) -> str:
+def get_appointments(appointment_date: str, data_base_url: str) -> str:
     """
     Agent tool function to retrieve all calendar appointments for a single date.
     :param appointment_date: Date for which to retrieve appointments.
     :return: JSON string containing the appointments.
     """
-    url = base_url + f"/calendar/{appointment_date}.json"
+    url = data_base_url + f"/calendar/{appointment_date}.json"
     response = requests.get(url, timeout=15)
     response.raise_for_status()
 
@@ -148,7 +146,7 @@ def get_appointments(appointment_date: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def get_weather(city: str, date: str) -> str:
+def get_weather(city: str, date: str, data_base_url: str) -> str:
     """
     Get the weather of a city from an API endpoint
     :param city: City of which to get the weather for
@@ -156,7 +154,7 @@ def get_weather(city: str, date: str) -> str:
     :return: Gathered weather data in json format
     """
 
-    url = base_url + f"/weather/{city}/{date}.json"
+    url = data_base_url + f"/weather/{city}/{date}.json"
     response = requests.get(url, timeout=15)
 
     response.raise_for_status()
@@ -169,7 +167,7 @@ def get_weather(city: str, date: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def get_connection(date: str, to_city: str, from_city="ulm",) -> str:
+def get_connection(date: str, to_city: str, data_base_url: str, from_city="ulm") -> str:
     """
     Get the train connections from one city to another on a specific date
     :param date: Date for which to get the train connections
@@ -177,7 +175,7 @@ def get_connection(date: str, to_city: str, from_city="ulm",) -> str:
     :param from_city: City the user wants to travel from, defaults to Ulm if not specified
     :return:
     """
-    url = base_url + f"/transit/{from_city}/{to_city}/{date}.json"
+    url = data_base_url + f"/transit/{from_city}/{to_city}/{date}.json"
     response = requests.get(url, timeout=15)
 
     response.raise_for_status()
