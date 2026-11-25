@@ -1,13 +1,16 @@
 # Agentic Interaction Exercise
-Learning how to implement an agent that runs tools and completes tasks. This description will be expanded as more functions get implemented.
+Learning how to implement an AI agent that runs tools and completes tasks. This description will be expanded as more functions get implemented.
 
 ## Functions
-The agent is currently able to retrieve information about appointments for a given date by sending a request to a calendar endpoint.
+The agent is currently able to retrieve information from a specified endpoint about the following:
+- Calendar appointments for one or multiple dates at once
+- Weather information for a given location on a given date
+- List train connections between two locations for a specified day
 
 ## Setup & How to Run
 1. Clone using `git clone https://github.com/PudduAlessandro/agentic-interaction-ws2627.git`
 2. Install required packages using `pip install -r requirements.txt`
-3. Create a .env file in the agent directory with the following content:
+3. Create a .env file in the `/agent` directory with the following content:
 ```
 OPENAI_BASE_URL=<Base URL to model endpoint>
 MODEL=<Model name>
