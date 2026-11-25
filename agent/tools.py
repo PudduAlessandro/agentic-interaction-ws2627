@@ -1,10 +1,12 @@
 import json
 import os
 from datetime import datetime
+from .__main__ import settings
 
 import requests
 
 current_date = datetime.now().astimezone().date().isoformat()
+base_url = settings.data_base_url
 
 TOOLS = [
     {
@@ -134,9 +136,8 @@ def get_appointments(appointment_date: str) -> str:
     :param appointment_date: Date for which to retrieve appointments.
     :return: JSON string containing the appointments.
     """
-    url = os.environ.get("DATA_BASE_URL") + f"/calendar/{appointment_date}.json"
+    url = base_url + f"/calendar/{appointment_date}.json"
     response = requests.get(url, timeout=15)
-
     response.raise_for_status()
 
     try:
@@ -155,7 +156,7 @@ def get_weather(city: str, date: str) -> str:
     :return: Gathered weather data in json format
     """
 
-    url = os.environ.get("DATA_BASE_URL") + f"/weather/{city}/{date}.json"
+    url = base_url + f"/weather/{city}/{date}.json"
     response = requests.get(url, timeout=15)
 
     response.raise_for_status()
@@ -176,7 +177,7 @@ def get_connection(date: str, to_city: str, from_city="ulm",) -> str:
     :param from_city: City the user wants to travel from, defaults to Ulm if not specified
     :return:
     """
-    url = os.environ.get("DATA_BASE_URL") + f"/transit/{from_city}/{to_city}/{date}.json"
+    url = base_url + f"/transit/{from_city}/{to_city}/{date}.json"
     response = requests.get(url, timeout=15)
 
     response.raise_for_status()

@@ -72,7 +72,6 @@ def main() -> int:
         print("Usage: python -m agent '<question>'", file=sys.stderr)
         return 2
 
-
     # Read prompt from user input in command line
     prompt = " ".join(sys.argv[1:]).strip()
     model = os.environ.get("MODEL", "")
@@ -132,7 +131,6 @@ def main() -> int:
                 tool_choice="auto",
                 parallel_tool_calls=False,
             )
-
         except Exception as error:
             log_error(time.perf_counter(),settings.model,"chat.completions.create", final_args, error)
             raise
