@@ -1,12 +1,11 @@
 import json
-import os
 from datetime import datetime
 
 import requests
 
 current_date = datetime.now().astimezone().date().isoformat()
 
-TOOLS = [
+READ_TOOLS = [
     {
             "type": "function",
             "function": {
@@ -132,6 +131,7 @@ def get_appointments(appointment_date: str, data_base_url: str) -> str:
     """
     Agent tool function to retrieve all calendar appointments for a single date.
     :param appointment_date: Date for which to retrieve appointments.
+    :param data_base_url: Base URL of the data endpoint to retrieve information from. Is given to the agent during tool call.
     :return: JSON string containing the appointments.
     """
     url = data_base_url + f"/calendar/{appointment_date}.json"
@@ -151,7 +151,8 @@ def get_weather(city: str, date: str, data_base_url: str) -> str:
     Get the weather of a city from an API endpoint
     :param city: City of which to get the weather for
     :param date: Date for which to get the weather for
-    :return: Gathered weather data in json format
+    :param data_base_url: Base URL of the data endpoint to retrieve information from. Is given to the agent during tool call.
+    :return: Gathered weather data in JSON format
     """
 
     url = data_base_url + f"/weather/{city}/{date}.json"
@@ -173,7 +174,8 @@ def get_connection(date: str, to_city: str, data_base_url: str, from_city="ulm")
     :param date: Date for which to get the train connections
     :param to_city: City the user wants to travel to
     :param from_city: City the user wants to travel from, defaults to Ulm if not specified
-    :return:
+    :param data_base_url: Base URL of the data endpoint to retrieve information from. Is given to the agent during tool call.
+    :return: List of train connections between the two entered cities
     """
     url = data_base_url + f"/transit/{from_city}/{to_city}/{date}.json"
     response = requests.get(url, timeout=15)
@@ -187,8 +189,11 @@ def get_connection(date: str, to_city: str, data_base_url: str, from_city="ulm")
 
     return json.dumps(data, ensure_ascii=False)
 
-TOOL_FUNCTIONS = {
+
+
+READ_TOOL_FUNCTIONS = {
     "get_appointments": get_appointments,
     "get_weather": get_weather,
     "get_connections": get_connection,
 }
+

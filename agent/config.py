@@ -1,16 +1,34 @@
 import os
 
 from dataclasses import dataclass
-from dotenv import load_dotenv
-from agent.tools import current_date
+from enum import Enum
 
-@dataclass(frozen=True)
+from dotenv import load_dotenv
+from agent.read_tools import current_date
+
+
+class Condition(Enum):
+    PREVIEW = "preview"
+    DIRECT = "direct"
+
+@dataclass
 class Settings:
     model: str
     openai_api_key: str
     openai_base_url: str
     data_base_url: str
+    condition: Condition = Condition.PREVIEW
     max_steps: int = 4
+
+    def __post_init__(self):
+        if isinstance(self.condition, str):
+            try:
+                self.condition = Condition(self.condition)
+            except ValueError:
+                self.condition = Condition.PREVIEW
+        elif not isinstance(self.condition, Condition):
+            self.condition = Condition.PREVIEW
+
 
 def load_settings() -> Settings:
     load_dotenv()
@@ -33,14 +51,19 @@ def load_settings() -> Settings:
         openai_api_key=os.environ["OPENAI_API_KEY"],
         openai_base_url=os.environ["OPENAI_BASE_URL"],
         data_base_url=os.environ["DATA_BASE_URL"],
+        condition=os.environ.get("CONDITION", Condition.PREVIEW.value),
     )
 
 # TODO: Fix the agent almost always responding in German
+# TODO: Maybe shorten system prompt to reduce spent tokens
+# TODO: Maybe add formation rules (mention output going to terminal)
+
 SYSTEM_PROMPT = (
                 "You answer questions about calendar appointments, city weather, train connections and nothing else. "
                 f"Today is the {current_date}. Use this date to calculate any relative dates the user asks about (e.g. Tomorrow, Yesterday, this Tuesday, Sunday."
                 "Dates may be written in any format depending on where the user is from; convert them to YYYY-MM-DD before calling any tool."
                 "Use the get_appointments tool whenever the user asks about appointments on a date."
+                "Use the create_appointment tool whenever the user asks you to create an appointment. "
                 "Use the get_weather tool whenever the user asks about the weather in a city on a date."
                 "Use the get_connections tool whenever the user asks about travelling from one city to another. "
                 "Should the user ask about how to get somewhere without providing their current location, assume they are located in Ulm."

@@ -4,8 +4,9 @@ import sys
 import time
 
 from .logging import log_event, log_error
-from .tools import TOOLS, TOOL_FUNCTIONS, normalize_date
-from .config import load_settings, SYSTEM_PROMPT
+from .read_tools import READ_TOOLS, READ_TOOL_FUNCTIONS, normalize_date
+from .write_tools import WRITE_TOOLS, WRITE_TOOL_HANDLERS
+from .config import load_settings, SYSTEM_PROMPT, Condition
 
 from openai import OpenAI
 
@@ -13,6 +14,8 @@ class StepLimitExceeded(RuntimeError):
     """Raised when an agent run reaches its maximum number of tool calls."""
 
 settings = load_settings()
+
+AVAILABLE_TOOLS = READ_TOOLS + WRITE_TOOLS
 
 # Function to run step loop for tool calls, logging each step and handling errors
 def execute_tool_calls(tool_calls, messages,step_count) -> int:
@@ -25,35 +28,51 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
         step_count += 1
 
         tool_name = tool_call.function.name
-        tool_function = TOOL_FUNCTIONS.get(tool_name)
-
-        if tool_function is None:
-            raise RuntimeError(f"Unsupported tool: {tool_name}")
-
         tool_args = {"step": step_count}
 
         try:
             arguments = json.loads(tool_call.function.arguments)
-
-            if tool_name == "get_appointments":
-                arguments["appointment_date"] = normalize_date(
-                    arguments["appointment_date"]
-                )
-
             tool_args = {
                 **arguments,
                 "step": step_count,
             }
-
             log_event("tool_call", settings.model, time.perf_counter(), tool_name, tool_args)
-            result = tool_function(**arguments, data_base_url=settings.data_base_url)
+
+            write_handler = WRITE_TOOL_HANDLERS.get(tool_name)
+            if write_handler is not None:
+                if settings.condition == Condition.PREVIEW:
+                    preview = write_handler["preview"](**arguments)
+                    print(preview)
+                    confirmed = input("Proceed with this change? [y/N]: ").strip().lower()
+                    if confirmed not in {"y", "yes"}:
+                        result = "Denied by user; no changes were made."
+                    else:
+                        result = write_handler["direct"](**arguments)
+                else:
+                    result = write_handler["direct"](**arguments)
+            else:
+                tool_function = READ_TOOL_FUNCTIONS.get(tool_name)
+                if tool_function is None:
+                    raise RuntimeError(f"Unsupported tool: {tool_name}")
+
+                if tool_name == "get_appointments":
+                    arguments["appointment_date"] = normalize_date(
+                        arguments["appointment_date"]
+                    )
+
+                result = tool_function(
+                    **arguments,
+                    data_base_url=settings.data_base_url,
+                )
         except Exception as error:
             log_error(time.perf_counter(), settings.model, tool_name, tool_args, error)
-
-            result = (
-                f"Unable to retrieve data for {tool_name}. "
-                "The external service failed or returned an error."
-            )
+            if tool_name in WRITE_TOOL_HANDLERS:
+                result = f"Unable to execute {tool_name}: {error}"
+            else:
+                result = (
+                    f"Unable to retrieve data for {tool_name}. "
+                    "The external service failed or returned an error."
+                )
         else:
             log_event("tool_result", settings.model, time.perf_counter(), tool_name, tool_args)
 
@@ -95,7 +114,7 @@ def main() -> int:
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            tools=TOOLS,
+            tools=AVAILABLE_TOOLS,
             tool_choice="auto",
             parallel_tool_calls=False,
         )
@@ -127,7 +146,7 @@ def main() -> int:
             final_response = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                tools=TOOLS,
+                tools=AVAILABLE_TOOLS,
                 tool_choice="auto",
                 parallel_tool_calls=False,
             )
