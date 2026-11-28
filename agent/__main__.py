@@ -23,7 +23,7 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
     for tool_call in tool_calls:
         if step_count >= settings.max_steps:
             error = StepLimitExceeded(f"Maximum number of steps ({settings.max_steps}) reached.")
-            log_error(time.perf_counter(), settings.model,"agent",{"step": step_count, "max_steps": settings.max_steps}, error)
+            log_error(time.perf_counter(), settings.model,"agent",{"step": step_count, "max_steps": settings.max_steps}, error, settings.condition.value)
             raise error
         step_count += 1
 
@@ -36,7 +36,7 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
                 **arguments,
                 "step": step_count,
             }
-            log_event("tool_call", settings.model, time.perf_counter(), tool_name, tool_args)
+            log_event("tool_call", settings.model, time.perf_counter(), tool_name, tool_args, settings.condition.value)
 
             write_handler = WRITE_TOOL_HANDLERS.get(tool_name)
             if write_handler is not None:
@@ -44,9 +44,15 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
                     preview = write_handler["preview"](**arguments)
                     print(preview)
                     confirmed = input("Proceed with this change? [y/N]: ").strip().lower()
+                    log_event("approval_request", settings.model, time.perf_counter(), tool_name, tool_args,
+                              settings.condition.value)
                     if confirmed not in {"y", "yes"}:
                         result = "Denied by user; no changes were made."
+                        log_event("approval_denied", settings.model, time.perf_counter(), tool_name, tool_args,
+                                  settings.condition.value)
                     else:
+                        log_event("approval_granted", settings.model, time.perf_counter(), tool_name, tool_args,
+                                  settings.condition.value)
                         result = write_handler["direct"](**arguments)
                 else:
                     result = write_handler["direct"](**arguments)
@@ -65,7 +71,7 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
                     data_base_url=settings.data_base_url,
                 )
         except Exception as error:
-            log_error(time.perf_counter(), settings.model, tool_name, tool_args, error)
+            log_error(time.perf_counter(), settings.model, tool_name, tool_args, error, settings.condition.value)
             if tool_name in WRITE_TOOL_HANDLERS:
                 result = f"Unable to execute {tool_name}: {error}"
             else:
@@ -74,7 +80,7 @@ def execute_tool_calls(tool_calls, messages,step_count) -> int:
                     "The external service failed or returned an error."
                 )
         else:
-            log_event("tool_result", settings.model, time.perf_counter(), tool_name, tool_args)
+            log_event("tool_result", settings.model, time.perf_counter(), tool_name, tool_args, settings.condition.value)
 
 
         messages.append({
@@ -94,7 +100,7 @@ def main() -> int:
     # Read prompt from user input in command line
     prompt = " ".join(sys.argv[1:]).strip()
     model = os.environ.get("MODEL", "")
-    log_event("user_task", settings.model, time.perf_counter(),"agent",{"prompt": prompt},)
+    log_event("user_task", settings.model, time.perf_counter(),"agent",{"prompt": prompt}, settings.condition.value)
 
     client = OpenAI(
         api_key=settings.openai_api_key,
@@ -107,7 +113,7 @@ def main() -> int:
     ]
 
     model_args = {"message_count": len(messages), "has_tools": True}
-    log_event("tool_call", settings.model, time.perf_counter(),"chat.completions.create", model_args)
+    log_event("tool_call", settings.model, time.perf_counter(),"chat.completions.create", model_args, settings.condition.value)
 
     # Attempt to build the client with model, tools and system prompt
     try:
@@ -119,9 +125,9 @@ def main() -> int:
             parallel_tool_calls=False,
         )
     except Exception as error:
-        log_error(time.perf_counter(), settings.model, "chat.completions.create", model_args, error)
+        log_error(time.perf_counter(), settings.model, "chat.completions.create", model_args, error, settings.condition.value)
         raise
-    log_event("tool_result", settings.model, time.perf_counter(),"chat.completions.create", model_args)
+    log_event("tool_result", settings.model, time.perf_counter(),"chat.completions.create", model_args, settings.condition.value)
 
     assistant_message = response.choices[0].message
     messages.append(assistant_message)
@@ -140,7 +146,7 @@ def main() -> int:
     # If there were no tool calls, we're done
     while True:
         final_args = {"message_count": len(messages), "has_tools": True}
-        log_event("tool_call",settings.model, time.perf_counter(),"chat.completions.create", final_args)
+        log_event("tool_call",settings.model, time.perf_counter(),"chat.completions.create", final_args, settings.condition.value)
 
         try:
             final_response = client.chat.completions.create(
@@ -152,9 +158,9 @@ def main() -> int:
             )
 
         except Exception as error:
-            log_error(time.perf_counter(),settings.model,"chat.completions.create", final_args, error)
+            log_error(time.perf_counter(),settings.model,"chat.completions.create", final_args, error, settings.condition.value)
             raise
-        log_event("tool_result",settings.model, time.perf_counter(),"chat.completions.create", final_args)
+        log_event("tool_result",settings.model, time.perf_counter(),"chat.completions.create", final_args, settings.condition.value)
 
         final_message = final_response.choices[0].message
         messages.append(final_message)
@@ -166,7 +172,7 @@ def main() -> int:
             messages,
             step_count,
         )
-    log_event("final", settings.model, time.perf_counter(),"agent",{"response_length": len(final_content or "")})
+    log_event("final", settings.model, time.perf_counter(),"agent",{"response_length": len(final_content or "")}, settings.condition.value)
     print(final_content)
     return 0
 

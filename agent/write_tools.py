@@ -10,6 +10,7 @@ WRITE_TOOLS = [
                 "Create a new appointment in the users calendar."
                 "A calendar appointment requires a date, start time, end time and title. Location and details are optional."
                 "Locations can be either a city, address or a room number. If a location is provided, it should be included in the appointment."
+                "Your response should ALWAYS be in the same language the user used for their prompt, no matter in what country the location of the appointment is located in."
                 "Details can be any additional information about the appointment. If details are provided, they should be included in the appointment."
             ),
             "parameters": {
